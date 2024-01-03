@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Konwerter Walut</title>
+    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h2>Logowanie</h2>
+        <form id="login_form">
+            <div class="form-group">
+                <label for="username">Nazwa użytkownika:</label>
+                <input type="text" class="form-control" id="username" required>
+            </div>
+            <div class="form-group">
+                <label for="password">Hasło:</label>
+                <input type="password" class="form-control" id="password" required>
+            </div>
+            <button type="submit" class="btn btn-primary">Zaloguj</button>
+        </form>
+        <button id="logout_button" class="btn btn-secondary" style="display:none;">Wyloguj</button>
+        <button id="show_users" class="btn btn-info" style="display:none;">Pokaż Użytkowników</button>
+        <div id="login_result"></div>
+        <div id="users_list"></div>
+
+        <div id="content" style="display:none;">
+            <h2>Konwerter Walut</h2>
+            <div class="form-group">
+                <label for="amount">Kwota:</label>
+                <input type="number" class="form-control" id="amount" required>
+            </div>
+            <div class="form-group">
+                <label for="from_currency">Z waluty:</label>
+                <select class="form-control" id="from_currency">
+                    <option value="PLN">PLN</option>
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="GBP">GBP</option>
+                    <!-- Dodatkowe opcje walut -->
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="to_currency">Na walutę:</label>
+                <select class="form-control" id="to_currency">
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="GBP">GBP</option>
+                    <!-- Dodatkowe opcje walut -->
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="result">Przeliczona Kwota:</label>
+                <input type="text" class="form-control" id="result" readonly>
+            </div>
+
+            <h2>Subskrypcja Powiadomień o Zmianach Kursu Walut</h2>
+            <form id="subscription_form">
+                <div class="form-group">
+                    <label for="subscription_email">Email:</label>
+                    <input type="email" class="form-control" id="subscription_email" required>
+                </div>
+                <div class="form-group">
+                    <label for="subscription_currency">Waluta:</label>
+                    <select class="form-control" id="subscription_currency">
+                        <option value="PLN">PLN</option>
+                        <option value="USD">USD</option>
+                        <option value="EUR">EUR</option>
+                        <!-- Dodatkowe opcje walut -->
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label for="threshold">Próg zmiany kursu:</label>
+                    <input type="number" class="form-control" id="threshold" required>
+                </div>
+                <button type="submit" class="btn btn-primary">Subskrybuj</button>
+            </form>
+            <div id="subscription_result"></div>
+        </div>
+    </div>
+
+    <script>
+        $(document).ready(function(){
+            $('#login_form').submit(function(e){
+                e.preventDefault();
+                var username = $('#username').val();
+                var password = $('#password').val();
+
+                $.ajax({
+                    url: '/login',
+                    type: 'POST',
+                    data: {
+                        'username': username,
+                        'password': password
+                    },
+                    success: function(data) {
+                        $('#login_result').html('<p>' + data.message + '</p>');
+                        if(data.logged_in) {
+                            $('#content').show();
+                            $('#login_form').hide();
+                            $('#logout_button').show();
+                            if(username === 'admin') {
+                                $('#show_users').show();
+                            }
+                        }
+                    }
+                });
+            });
+
+            $('#logout_button').click(function(){
+                $.ajax({
+                    url: '/logout',
+                    type: 'POST',
+                    success: function(data) {
+                        $('#login_result').html('<p>' + data.message + '</p>');
+                        $('#content, #show_users').hide();
+                        $('#login_form').show();
+                        $('#username, #password').prop('disabled', false).val('');
+                    }
+                });
+            });
+
+            $('#show_users').click(function(){
+                $.ajax({
+                    url: '/users',
+                    type: 'GET',
+                    success: function(data) {
+                        if(data.users){
+                            var usersList = '<ul>';
+                            $.each(data.users, function(key) {
+                                usersList += '<li>' + key + '</li>';
+                            });
+                            usersList += '</ul>';
+                            $('#users_list').html(usersList);
+                        } else {
+                            $('#users_list').html('<p>Brak dostępu do danych użytkowników.</p>');
+                        }
+                    }
+                });
+            });
+
+            $('#amount, #from_currency, #to_currency').on('input change', function(){
+                var amount = $('#amount').val();
+                var fromCurrency = $('#from_currency').val();
+                var toCurrency = $('#to_currency').val();
+
+                if(amount && fromCurrency && toCurrency) {
+                    $.ajax({
+                        url: '/convert',
+                        type: 'GET',
+                        data: {
+                            'amount': amount,
+                            'from_currency': fromCurrency,
+                            'to_currency': toCurrency
+                        },
+                        success: function(data) {
+                            $('#result').val(data.converted_amount.toFixed(2));
+                        }
+                    });
+                }
+            });
+
+            $('#subscription_form').submit(function(e){
+                e.preventDefault();
+                var email = $('#subscription_email').val();
+                var currency = $('#subscription_currency').val();
+                var threshold = $('#threshold').val();
+
+                $.ajax({
+                    url: '/subscribe',
+                    type: 'POST',
+                    data: {
+                        'email': email,
+                        'currency': currency,
+                        'threshold': threshold
+                    },
+                    success: function(data) {
+                        $('#subscription_result').html('<p>' + data.message + '</p>');
+                    }
+                });
+            });
+        });
+    </script>
+</body>
+</html>

@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Konwerter Walut</title>
     <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
@@ -21,10 +22,28 @@
             </div>
             <button type="submit" class="btn btn-primary">Zaloguj</button>
         </form>
-        <button id="logout_button" class="btn btn-secondary" style="display:none;">Wyloguj</button>
-        <button id="show_users" class="btn btn-info" style="display:none;">Pokaż Użytkowników</button>
         <div id="login_result"></div>
-        <div id="users_list"></div>
+        <button id="logout_button" class="btn btn-secondary" style="display:none;">Wyloguj</button>
+
+        <button id="show_register" class="btn btn-info">Rejestracja</button>
+        <div id="register_section" style="display:none;">
+            <h2>Rejestracja</h2>
+            <form id="register_form">
+                <div class="form-group">
+                    <label for="new_username">Nazwa użytkownika:</label>
+                    <input type="text" class="form-control" id="new_username" required>
+                </div>
+                <div class="form-group">
+                    <label for="new_password">Hasło:</label>
+                    <input type="password" class="form-control" id="new_password" required>
+                </div>
+                <button type="submit" class="btn btn-success">Zarejestruj</button>
+            </form>
+            <div id="register_result"></div>
+        </div>
+
+        <button id="toggle_history" class="btn btn-info" style="display:none;">Historia</button>
+        <div id="history" style="display:none;"></div>
 
         <div id="content" style="display:none;">
             <h2>Konwerter Walut</h2>
@@ -39,7 +58,6 @@
                     <option value="USD">USD</option>
                     <option value="EUR">EUR</option>
                     <option value="GBP">GBP</option>
-                    <!-- Dodatkowe opcje walut -->
                 </select>
             </div>
             <div class="form-group">
@@ -48,7 +66,6 @@
                     <option value="USD">USD</option>
                     <option value="EUR">EUR</option>
                     <option value="GBP">GBP</option>
-                    <!-- Dodatkowe opcje walut -->
                 </select>
             </div>
             <div class="form-group">
@@ -68,7 +85,6 @@
                         <option value="PLN">PLN</option>
                         <option value="USD">USD</option>
                         <option value="EUR">EUR</option>
-                        <!-- Dodatkowe opcje walut -->
                     </select>
                 </div>
                 <div class="form-group">
@@ -100,10 +116,8 @@
                         if(data.logged_in) {
                             $('#content').show();
                             $('#login_form').hide();
-                            $('#logout_button').show();
-                            if(username === 'admin') {
-                                $('#show_users').show();
-                            }
+                            $('#logout_button, #toggle_history').show();
+                            $('#show_register').hide();
                         }
                     }
                 });
@@ -115,30 +129,59 @@
                     type: 'POST',
                     success: function(data) {
                         $('#login_result').html('<p>' + data.message + '</p>');
-                        $('#content, #show_users').hide();
+                        $('#content, #toggle_history, #history').hide();
                         $('#login_form').show();
                         $('#username, #password').prop('disabled', false).val('');
+                        $('#show_register').show();
                     }
                 });
             });
 
-            $('#show_users').click(function(){
+            $('#show_register').click(function(){
+                $('#register_section').toggle();
+            });
+
+            $('#register_form').submit(function(e){
+                e.preventDefault();
+                var newUsername = $('#new_username').val();
+                var newPassword = $('#new_password').val();
+
                 $.ajax({
-                    url: '/users',
-                    type: 'GET',
+                    url: '/register',
+                    type: 'POST',
+                    data: {
+                        'username': newUsername,
+                        'password': newPassword
+                    },
                     success: function(data) {
-                        if(data.users){
-                            var usersList = '<ul>';
-                            $.each(data.users, function(key) {
-                                usersList += '<li>' + key + '</li>';
-                            });
-                            usersList += '</ul>';
-                            $('#users_list').html(usersList);
-                        } else {
-                            $('#users_list').html('<p>Brak dostępu do danych użytkowników.</p>');
+                        $('#register_result').html('<p>' + data.message + '</p>');
+                        if(data.message === 'Użytkownik został zarejestrowany') {
+                            $('#register_section').hide();
                         }
                     }
                 });
+            });
+
+            $('#toggle_history').click(function(){
+                $('#history').toggle();
+                if($('#history').is(':visible')) {
+                    $.ajax({
+                        url: '/history',
+                        type: 'GET',
+                        success: function(data) {
+                            if(data.history) {
+                                var historyHTML = '<ul>';
+                                $.each(data.history, function(index, entry) {
+                                    historyHTML += '<li>' + entry + '</li>';
+                                });
+                                historyHTML += '</ul>';
+                                $('#history').html(historyHTML);
+                            } else {
+                                $('#history').html('<p>No history found.</p>');
+                            }
+                        }
+                    });
+                }
             });
 
             $('#amount, #from_currency, #to_currency').on('input change', function(){
@@ -156,7 +199,11 @@
                             'to_currency': toCurrency
                         },
                         success: function(data) {
-                            $('#result').val(data.converted_amount.toFixed(2));
+                            if(data.error) {
+                                $('#result').val(data.error);
+                            } else {
+                                $('#result').val(data.converted_amount.toFixed(2));
+                            }
                         }
                     });
                 }

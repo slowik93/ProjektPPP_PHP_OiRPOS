@@ -8,6 +8,7 @@ API_KEY = "YOUR_API_KEY"  # Ensure you have your own API key for the currency co
 
 # Simple in-memory 'database' for demonstration purposes
 users = {
+    "1": "1",
     "user1": "haslo1",
     "user2": "haslo2",
     "admin": "adminpassword"  # Normally, you'd store passwords securely

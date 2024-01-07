@@ -161,24 +161,33 @@ def history():
                 if user.id is not None:
                     conversion_history_query = ConversionHistory.query.filter_by(user_id=user.id).all()
 
-                    # Convert the Query result to a JSON-serializable format
-                    if conversion_history_query:
+                    conversion_history_list = { }
+                    conversion_history_raw = { }
+
+                    # zwracanie danych w orginalnym formacie
+                    if conversion_history_query and False:
                         conversion_history_list = [
                             {
-                                'currency_from': item.currency_from.name,
-                                'currency_to': item.currency_to.name,
-                                'value_from': item.value_from,
-                                'value_to': item.value_to,
-                                'rate': item.rate
+                                'value': f"{item.value_from} {item.currency_from.name} to {item.value_to} {item.currency_to.name} at rate {item.rate}"
                             }
                             for item in conversion_history_query
                         ]
 
-
-                        # history_entry = f"{amount} {from_currency} to {converted_amount} {to_currency} at rate {rate}"
-                        # histories[session['username']].append(history_entry)
-
                         return jsonify({'history': conversion_history_list})
+
+                    if conversion_history_query:
+                        conversion_history_raw = [
+                            {
+                                'currency_from': item.currency_from.name,
+                                'currency_to': item.currency_to.name,
+                                'value_from': round(item.value_from, 4),
+                                'value_to': round(item.value_to, 4),
+                                'rate': round(item.rate, 4)
+                            }
+                            for item in conversion_history_query
+                        ]
+
+                        return jsonify({'history': conversion_history_raw})
 
                     return jsonify({'error': 'Brak dostępu do historii'})
 
@@ -257,8 +266,6 @@ def subscribe():
     email = request.form.get('email')
     currency = request.form.get('currency')
     threshold = request.form.get('threshold', type=float)
-
-    # Add subscription logic or storage here
 
     return jsonify({'message': f'Subskrypcja dla {email} na walutę {currency} z progiem {threshold} została zarejestrowana'})
 

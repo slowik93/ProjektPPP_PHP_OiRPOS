@@ -170,11 +170,18 @@
                         type: 'GET',
                         success: function(data) {
                             if(data.history) {
-                                var historyHTML = '<ul>';
+                                var historyHTML = '<div style="height: 200px; overflow-y: auto;" border=><table class="table table-bordered"><thead><tr><th scope="col">#</th><th scope="col">Wartość przed</th><th scope="col">Waluta z</th><th scope="col">Wartość po</th><th scope="col">Waluta do</th><th scope="col">Przelicznik</th></tr></thead><tbody>';
                                 $.each(data.history, function(index, entry) {
-                                    historyHTML += '<li>' + entry + '</li>';
+                                    historyHTML += '<tr>';
+                                    historyHTML += '<td>' + (index + 1) + '</td>';  
+                                    historyHTML += '<td>' + entry.value_from + '</td>';
+                                    historyHTML += '<td>' + entry.currency_from + '</td>';
+                                    historyHTML += '<td>' + entry.value_to + '</td>';
+                                    historyHTML += '<td>' + entry.currency_to + '</td>';
+                                    historyHTML += '<td>' + entry.rate + '</td>';
+                                    historyHTML += '</tr>';
                                 });
-                                historyHTML += '</ul>';
+                                historyHTML += '</tbody></table></div>';
                                 $('#history').html(historyHTML);
                             } else {
                                 $('#history').html('<p>No history found.</p>');

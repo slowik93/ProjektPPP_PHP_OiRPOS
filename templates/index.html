@@ -42,8 +42,11 @@
             <div id="register_result"></div>
         </div>
 
-        <button id="toggle_history" class="btn btn-info" style="display:none;">Historia</button>
+        <button id="toggle_history" class="btn btn-info" style="display:none;">Historia tranzakcji</button>
         <div id="history" style="display:none;"></div>
+
+        <button id="toggle_exchange_rates" class="btn btn-info" style="display:none;">Historia kursu</button>
+        <div id="exchange_rates" style="display:none;"></div>
 
         <div id="content" style="display:none;">
             <h2>Konwerter Walut</h2>
@@ -116,7 +119,7 @@
                         if(data.logged_in) {
                             $('#content').show();
                             $('#login_form').hide();
-                            $('#logout_button, #toggle_history').show();
+                            $('#logout_button, #toggle_history, #toggle_exchange_rates').show();
                             $('#show_register').hide();
                         }
                     }
@@ -190,6 +193,38 @@
                     });
                 }
             });
+
+            $('#toggle_exchange_rates').click(function(){
+                $('#exchange_rates').toggle();
+                if($('#exchange_rates').is(':visible')) {
+                    $.ajax({
+                        url: '/display_exchange_data_for_30_days',
+                        type: 'GET',
+                        success: function(data) {
+                            if(data.exchange_data) {
+                                var historyHTML = '<div style="height: 200px; overflow-y: auto;"><table class="table table-bordered"><thead><tr><th scope="col">#</th><th scope="col">Data</th><th scope="col">Waluta od</th><th scope="col">Waluta do</th><th scope="col">Otwarcie</th><th scope="col">Najwyższa cena</th><th scope="col">Najniższa cena</th><th scope="col">Cena zamknięcia</th></tr></thead><tbody>';
+                                $.each(data.exchange_data, function(index, entry) {
+                                    historyHTML += '<tr>';
+                                    historyHTML += '<td>' + (index + 1) + '</td>';
+                                    historyHTML += '<td>' + entry.date + '</td>';
+                                    historyHTML += '<td>' + entry.base_currency + '</td>';
+                                    historyHTML += '<td>' + entry.target_currency + '</td>';
+                                    historyHTML += '<td>' + entry.open_price + '</td>';
+                                    historyHTML += '<td>' + entry.high_price + '</td>';
+                                    historyHTML += '<td>' + entry.low_price + '</td>';
+                                    historyHTML += '<td>' + entry.close_price + '</td>';
+                                    historyHTML += '</tr>';
+                                });
+                                historyHTML += '</tbody></table></div>';
+                                $('#exchange_rates').html(historyHTML);
+                            } else {
+                                $('#exchange_rates').html('<p>No exchange data found.</p>');
+                            }
+                        }
+                    });
+                }
+            });
+
 
             $('#amount, #from_currency, #to_currency').on('input change', function(){
                 var amount = $('#amount').val();

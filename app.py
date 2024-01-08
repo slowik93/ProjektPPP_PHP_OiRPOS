@@ -1,3 +1,4 @@
+from datetime import datetime, timedelta
 from flask import Flask, render_template, request, jsonify, session
 import requests
 from flask_sqlalchemy import SQLAlchemy
@@ -6,6 +7,11 @@ app = Flask(__name__)
 app.secret_key = 'twoj_tajny_klucz'
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///site.db'  # SQLite database
 db = SQLAlchemy(app)
+
+api_key = 'KSAVRUPOUXAA64X8'
+symbol = 'PLNUSD'
+endpoint = 'https://www.alphavantage.co/query'
+function = 'FX_DAILY'
 
 # Tabela User
 class User(db.Model):
@@ -40,6 +46,16 @@ class ConversionHistory(db.Model):
     def __repr__(self):
         return f"ConversionHistory('{self.currency_from.name}', '{self.currency_to.name}', '{self.value_from}', '{self.value_to}')"
 
+class ExchangeRate(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    date = db.Column(db.String(10))
+    base_currency = db.Column(db.String(3))
+    target_currency = db.Column(db.String(3))
+    open_price = db.Column(db.Float)
+    high_price = db.Column(db.Float)
+    low_price = db.Column(db.Float)
+    close_price = db.Column(db.Float)
+
 def populate_database():
     existing_users = User.query.all()
     if not existing_users:
@@ -64,19 +80,116 @@ def populate_database():
         db.session.add_all([currency1, currency2, currency3, currency4 ])
         db.session.commit()
 
+    exchange_rates = ExchangeRate.query.all()
+    if not exchange_rates:
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=29)
+        current_date = start_date
+
+        formatted_date = current_date.strftime('%Y-%m-%d')
+
+        params = {
+            'function': function,
+            'from_symbol': symbol[:3],
+            'to_symbol': symbol[3:],
+            'apikey': api_key,
+            'date': formatted_date,
+        }
+
+        response = requests.get(endpoint, params=params)
+        data = response.json()
+
+        if 'Time Series FX (Daily)' in data:
+            for date, values in data['Time Series FX (Daily)'].items():
+                exchange_rate = ExchangeRate(
+                    date=date,
+                    base_currency=symbol[:3],
+                    target_currency=symbol[3:],
+                    open_price=float(values['1. open']),
+                    high_price=float(values['2. high']),
+                    low_price=float(values['3. low']),
+                    close_price=float(values['4. close'])
+                )
+                db.session.add(exchange_rate)
+                db.session.commit()
+
+
+def fetch_exchange_rate_data(date):
+    params = {
+        'function': function,
+        'from_symbol': symbol[:3],
+        'to_symbol': symbol[3:],
+        'apikey': api_key,
+        'date': date,
+    }
+    response = requests.get(endpoint, params=params)
+
+    if response.status_code == 200:
+        data = response.json()
+        return data
+    else:
+        # If the request was not successful, print an error message
+        print(f"Error fetching data from API. Status code: {response.status_code}")
+        return None
+
+
+def get_previous_date_data():
+    yesterday_date = (datetime.now() - timedelta(days=1)).strftime('%Y-%m-%d')
+
+    record = ExchangeRate.query.filter_by(date=yesterday_date).first()
+
+    if not record:
+        # If no record is found, fetch data from the API and save it to the database
+        api_data = fetch_exchange_rate_data(yesterday_date)
+        if 'Time Series FX (Daily)' in api_data:
+            latest_data = api_data['Time Series FX (Daily)'][yesterday_date]
+            new_record = ExchangeRate(
+                date=yesterday_date,
+                base_currency=symbol[:3],
+                target_currency=symbol[3:],
+                open_price=float(latest_data['1. open']),
+                high_price=float(latest_data['2. high']),
+                low_price=float(latest_data['3. low']),
+                close_price=float(latest_data['4. close'])
+            )
+            db.session.add(new_record)
+            db.session.commit()
+
+            record = new_record
+
+    data_for_response = {
+        'date': record.date,
+        'base_currency': record.base_currency,
+        'target_currency': record.target_currency,
+        'open_price': record.open_price,
+        'high_price': record.high_price,
+        'low_price': record.low_price,
+        'close_price': record.close_price
+    } if record else None
+
+    return jsonify({'previous_date_data': data_for_response})
+
+
+
 with app.app_context():
     db.create_all()
     populate_database()
 
     # wyświetlanie użytkowników w bazie danych
-    users = User.query.all()
-    for user in users:
-        print(user.username, user.password)
+    # users = User.query.all()
+    # for user in users:
+    #     print(user.username, user.password)
 
-            # wyświetlanie użytkowników w bazie danych
-    historyC = ConversionHistory.query.all()
-    for h in historyC:
-        print(h.rate, h.user_id)
+    #         # wyświetlanie użytkowników w bazie danych
+    # historyC = ConversionHistory.query.all()
+    # for h in historyC:
+    #     print(h.rate, h.user_id)
+
+    # all_exchange_rates = ExchangeRate.query.all()
+    # for rate in all_exchange_rates:
+    #     print(f"Date: {rate.date}, Base Currency: {rate.base_currency}, Target Currency: {rate.target_currency}, "
+    #           f"Open Price: {rate.open_price}, High Price: {rate.high_price}, Low Price: {rate.low_price}, "
+    #           f"Close Price: {rate.close_price}")
 
 
 
@@ -149,6 +262,30 @@ def register():
         users[new_username] = new_password  # Securely hash passwords in real applications
         histories[new_username] = []  # Initialize history for the new user
         return jsonify({'message': 'Użytkownik został zarejestrowany'})
+
+@app.route('/display_exchange_data_for_30_days', methods=['GET'])
+def display_exchange_data():
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=29)
+
+    exchange_data = ExchangeRate.query.filter(
+        ExchangeRate.date >= start_date.strftime('%Y-%m-%d'),
+        ExchangeRate.date <= end_date.strftime('%Y-%m-%d')
+    ).all()
+
+    data_for_render = []
+    for entry in exchange_data:
+        data_for_render.append({
+            'date': entry.date,
+            'base_currency': entry.base_currency,
+            'target_currency': entry.target_currency,
+            'open_price': entry.open_price,
+            'high_price': entry.high_price,
+            'low_price': entry.low_price,
+            'close_price': entry.close_price,
+        })
+
+    return jsonify({'exchange_data': data_for_render})
 
 @app.route('/history', methods=['GET'])
 def history():

@@ -47,6 +47,9 @@
 
         <button id="toggle_exchange_rates" class="btn btn-info" style="display:none;">Historia kursu</button>
         <div id="exchange_rates" style="display:none;"></div>
+        
+        <button id="show_subscriptions" class="btn btn-info" style="display:none;">Pokaż Subskrypcje</button>
+        <div id="subscriptions_list" style="display:none;"></div>
 
         <div id="content" style="display:none;">
             <h2>Konwerter Walut</h2>
@@ -79,8 +82,8 @@
             <h2>Subskrypcja Powiadomień o Zmianach Kursu Walut</h2>
             <form id="subscription_form">
                 <div class="form-group">
-                    <label for="subscription_email">Email:</label>
-                    <input type="email" class="form-control" id="subscription_email" required>
+                    <label for="subscription_username">Nazwa użytkownika:</label>
+                    <input type="text" class="form-control" id="subscription_username" required>
                 </div>
                 <div class="form-group">
                     <label for="subscription_currency">Waluta:</label>
@@ -92,16 +95,55 @@
                 </div>
                 <div class="form-group">
                     <label for="threshold">Próg zmiany kursu:</label>
-                    <input type="number" class="form-control" id="threshold" required>
+                    <input type="number" class="form-control" id="threshold" required step="any" title="Wprowadź liczbę (liczby dziesiętne są dozwolone)">                    
                 </div>
                 <button type="submit" class="btn btn-primary">Subskrybuj</button>
             </form>
+e            
             <div id="subscription_result"></div>
         </div>
     </div>
 
     <script>
         $(document).ready(function(){
+            var loggedInUsername = 'admin'; // Ta wartość powinna być dynamicznie ustawiana na podstawie zalogowanego użytkownika
+
+            if(loggedInUsername === 'admin') {
+                $('#show_subscriptions').show();
+            } else {
+                $('#show_subscriptions').hide();
+            }
+
+            $('#show_subscriptions').click(function() {
+                $.ajax({
+                    url: '/subscriptions',
+                    type: 'GET',
+                    success: function(data) {
+                        if(data.error) {
+                            alert(data.error);
+                        } else {
+                            var subscriptionsHTML = '<h3>Lista Subskrypcji</h3><table class="table"><thead><tr><th>ID</th><th>Użytkownik</th><th>Waluta</th><th>Próg</th></tr></thead><tbody>';
+                            $.each(data, function(index, sub) {
+                                subscriptionsHTML += `<tr>
+                                    <td>${sub.id}</td>
+                                    <td>${sub.username}</td>
+                                    <td>${sub.currency}</td>
+                                    <td>${sub.threshold}</td>
+                                    <td><button class="btn btn-danger delete-subscription" data-id="${sub.id}">Usuń</button></td>
+                                </tr>`;
+                            });
+                            subscriptionsHTML += '</tbody></table>';
+                            $('#subscriptions_list').html(subscriptionsHTML).show();
+                        }
+                    },
+                    error: function(xhr, status, error) {
+                        console.error("Error: " + status + " - " + error);
+                        $('#subscription_result').html('<p>Wystąpił błąd: ' + xhr.responseText + '</p>');
+                    }
+
+                });
+            });
+
             $('#login_form').submit(function(e){
                 e.preventDefault();
                 var username = $('#username').val();
@@ -117,10 +159,8 @@
                     success: function(data) {
                         $('#login_result').html('<p>' + data.message + '</p>');
                         if(data.logged_in) {
-                            $('#content').show();
-                            $('#login_form').hide();
-                            $('#logout_button, #toggle_history, #toggle_exchange_rates').show();
-                            $('#show_register').hide();
+                            showLoggedInUI();
+                            
                         }
                     }
                 });
@@ -131,17 +171,41 @@
                     url: '/logout',
                     type: 'POST',
                     success: function(data) {
-                        $('#login_result').html('<p>' + data.message + '</p>');
-                        $('#content, #toggle_history, #history').hide();
-                        $('#login_form').show();
-                        $('#username, #password').prop('disabled', false).val('');
-                        $('#show_register').show();
+                        showLoggedOutUI();
+
                     }
                 });
             });
+            function showLoggedInUI() {
+                $('#content, #toggle_history, #toggle_exchange_rates').show();
+                $('#login_form, #login_result, #show_register, #register_section').hide();
+                $('#logout_button').show();
+            }
 
+            function showLoggedOutUI() {
+                $('#content, #toggle_history, #toggle_exchange_rates, #history, #exchange_rates').hide();
+                $('#login_form').show();
+                $('#username, #password').prop('disabled', false).val('');
+                $('#logout_button').hide();
+                $('#show_register').show();
+            }
+
+            // Obsługa pokazywania formularza rejestracji
             $('#show_register').click(function(){
                 $('#register_section').toggle();
+            });
+            $(document).on('click', '.delete-subscription', function() {
+                var subscriptionId = $(this).data('id');
+                $.ajax({
+                    url: '/delete_subscription/' + subscriptionId,
+                    type: 'POST',
+                    success: function(response) {
+                        alert(response.message);
+                    },
+                    error: function(response) {
+                        alert('Wystąpił błąd: ' + response.responseText);
+                    }
+                });
             });
 
             $('#register_form').submit(function(e){
@@ -251,9 +315,9 @@
                 }
             });
 
-            $('#subscription_form').submit(function(e){
+            $('#subscription_form').submit(function(e) {
                 e.preventDefault();
-                var email = $('#subscription_email').val();
+                var username = $('#subscription_username').val();
                 var currency = $('#subscription_currency').val();
                 var threshold = $('#threshold').val();
 
@@ -261,15 +325,18 @@
                     url: '/subscribe',
                     type: 'POST',
                     data: {
-                        'email': email,
                         'currency': currency,
                         'threshold': threshold
                     },
-                    success: function(data) {
-                        $('#subscription_result').html('<p>' + data.message + '</p>');
+                    success: function(response) {
+                        $('#subscription_result').html('<p>' + response.message + '</p>');
+                    },
+                    error: function(response) {
+                        $('#subscription_result').html('<p>Wystąpił błąd podczas subskrypcji.</p>');
                     }
                 });
             });
+
         });
     </script>
 </body>

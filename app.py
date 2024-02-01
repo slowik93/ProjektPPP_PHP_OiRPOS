@@ -56,6 +56,17 @@ class ExchangeRate(db.Model):
     low_price = db.Column(db.Float)
     close_price = db.Column(db.Float)
 
+class Subscription(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    currency = db.Column(db.String(50), nullable=False)
+    threshold = db.Column(db.Float, nullable=False)
+
+    user = db.relationship('User', backref=db.backref('subscriptions', lazy=True))
+
+    def __repr__(self):
+        return f"Subscription('{self.user.username}', '{self.currency}', '{self.threshold}')"
+
 def populate_database():
     existing_users = User.query.all()
     if not existing_users:
@@ -395,16 +406,75 @@ def convert():
 
     return jsonify({'error': 'Nie można przeliczyć waluty'})
 
+# @app.route('/subscribe', methods=['POST'])
+# def subscribe():
+#     if 'username' not in session:
+#         return jsonify({'error': 'Musisz być zalogowany, aby subskrybować powiadomienia'}), 401
+
+#     username = session['username']
+#     user = User.query.filter_by(username=username).first()
+#     if user is None:
+#         return jsonify({'error': 'Nie znaleziono użytkownika'}), 404
+
+#     # Pobierz walutę i próg z formularza, nie pobieraj emaila
+#     currency = request.form.get('currency')
+#     threshold = float(request.form.get('threshold', 0))
+
+#     new_subscription = Subscription(user_id=user.id, currency=currency, threshold=threshold)
+#     db.session.add(new_subscription)
+#     db.session.commit()
+
+#     return jsonify({'message': f'Subskrypcja na walutę {currency} z progiem {threshold} została zarejestrowana'})
 @app.route('/subscribe', methods=['POST'])
 def subscribe():
     if 'username' not in session:
-        return jsonify({'error': 'Nie jesteś zalogowany'})
+        return jsonify({'error': 'Musisz być zalogowany, aby subskrybować powiadomienia'}), 401
 
-    email = request.form.get('email')
+    username = session['username']
+    user = User.query.filter_by(username=username).first()
+    if user is None:
+        return jsonify({'error': 'Nie znaleziono użytkownika'}), 404
+
     currency = request.form.get('currency')
-    threshold = request.form.get('threshold', type=float)
+    threshold = float(request.form.get('threshold', 0))
 
-    return jsonify({'message': f'Subskrypcja dla {email} na walutę {currency} z progiem {threshold} została zarejestrowana'})
+    new_subscription = Subscription(user_id=user.id, currency=currency, threshold=threshold)
+    db.session.add(new_subscription)
+    db.session.commit()
+
+    return jsonify({'message': f'Subskrypcja na walutę {currency} z progiem {threshold} została zarejestrowana'})
+
+@app.route('/subscriptions', methods=['GET'])
+def subscriptions():
+    if 'username' not in session or session['username'] != 'admin':
+        return jsonify({'error': 'Brak uprawnień'}), 403
+
+    all_subscriptions = Subscription.query.join(User).add_columns(
+        Subscription.id, User.username, Subscription.currency, Subscription.threshold
+    ).all()
+
+    subscriptions_list = [
+        {
+            'id': sub.id, 
+            'username': sub.username, 
+            'currency': sub.currency, 
+            'threshold': sub.threshold
+        } for sub in all_subscriptions
+    ]
+
+    return jsonify(subscriptions_list)
+
+@app.route('/delete_subscription/<int:subscription_id>', methods=['POST'])
+def delete_subscription(subscription_id):
+    if 'username' not in session or session['username'] != 'admin':
+        return jsonify({'error': 'Brak uprawnień'}), 403
+
+    subscription = Subscription.query.get_or_404(subscription_id)
+    db.session.delete(subscription)
+    db.session.commit()
+
+    return jsonify({'message': 'Subskrypcja została usunięta'})
+
 
 if __name__ == '__main__':
     app.run(debug=True)

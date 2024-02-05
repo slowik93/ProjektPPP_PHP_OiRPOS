@@ -60,12 +60,12 @@ class Subscription(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     currency = db.Column(db.String(50), nullable=False)
-    threshold = db.Column(db.Float, nullable=False)
 
     user = db.relationship('User', backref=db.backref('subscriptions', lazy=True))
 
     def __repr__(self):
-        return f"Subscription('{self.user.username}', '{self.currency}', '{self.threshold}')"
+        return f"Subscription('{self.user.username}', '{self.currency}')"
+
 
 def populate_database():
     existing_users = User.query.all()
@@ -233,10 +233,11 @@ def login():
         user = User.query.filter_by(username=username).first()
         if user and user.password == password:
             session['username'] = username  # Log the user in
-            # histories[username] = [] 
-            return jsonify({'message': 'Zalogowano pomyślnie (baza danych)', 'logged_in': True})
+            session['is_admin'] = (username == 'admin')
+            return jsonify({'message': 'Zalogowano pomyślnie (baza danych)', 'logged_in': True, 'is_admin': session['is_admin']})
         else:
             return jsonify({'message': 'Nieprawidłowa nazwa użytkownika lub hasło (baza danych)', 'logged_in': False})
+    # Analogiczna logika dla innych części funkcji, jeśli jest to wymagane
 
     if username in users and users[username] == password:
         session['username'] = username  # Log the user in
@@ -472,7 +473,7 @@ def subscriptions():
         return jsonify({'error': 'Brak uprawnień'}), 403
 
     all_subscriptions = Subscription.query.join(User).add_columns(
-        Subscription.id, User.username, Subscription.currency, Subscription.threshold
+        Subscription.id, User.username, Subscription.currency
     ).all()
 
     subscriptions_list = [
@@ -480,7 +481,6 @@ def subscriptions():
             'id': sub.id, 
             'username': sub.username, 
             'currency': sub.currency, 
-            'threshold': sub.threshold
         } for sub in all_subscriptions
     ]
 

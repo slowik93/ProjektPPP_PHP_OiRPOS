@@ -93,10 +93,7 @@
                         <option value="EUR">EUR</option>
                     </select>
                 </div>
-                <div class="form-group">
-                    <label for="threshold">Próg zmiany kursu:</label>
-                    <input type="number" class="form-control" id="threshold" required step="any" title="Wprowadź liczbę (liczby dziesiętne są dozwolone)">                    
-                </div>
+
                 <button type="submit" class="btn btn-primary">Subskrybuj</button>
             </form>
 e            
@@ -106,6 +103,9 @@ e
 
     <script>
         $(document).ready(function(){
+            function hideSubscriptions() {
+                $('#subscriptions_list').hide(); // Ukrywa tabelę subskrypcji
+            }
             var loggedInUsername = 'admin'; // Ta wartość powinna być dynamicznie ustawiana na podstawie zalogowanego użytkownika
 
             if(loggedInUsername === 'admin') {
@@ -122,13 +122,12 @@ e
                         if(data.error) {
                             alert(data.error);
                         } else {
-                            var subscriptionsHTML = '<h3>Lista Subskrypcji</h3><table class="table"><thead><tr><th>ID</th><th>Użytkownik</th><th>Waluta</th><th>Próg</th></tr></thead><tbody>';
+                            var subscriptionsHTML = '<h3>Lista Subskrypcji</h3><table class="table"><thead><tr><th>ID</th><th>Użytkownik</th><th>Waluta</th></tr></thead><tbody>';
                             $.each(data, function(index, sub) {
                                 subscriptionsHTML += `<tr>
                                     <td>${sub.id}</td>
                                     <td>${sub.username}</td>
                                     <td>${sub.currency}</td>
-                                    <td>${sub.threshold}</td>
                                     <td><button class="btn btn-danger delete-subscription" data-id="${sub.id}">Usuń</button></td>
                                 </tr>`;
                             });
@@ -159,12 +158,13 @@ e
                     success: function(data) {
                         $('#login_result').html('<p>' + data.message + '</p>');
                         if(data.logged_in) {
+                            sessionStorage.setItem('isAdmin', data.is_admin); // Zapisuje informację o uprawnieniach admina
                             showLoggedInUI();
-                            
                         }
                     }
                 });
             });
+
 
             $('#logout_button').click(function(){
                 $.ajax({
@@ -180,14 +180,22 @@ e
                 $('#content, #toggle_history, #toggle_exchange_rates').show();
                 $('#login_form, #login_result, #show_register, #register_section').hide();
                 $('#logout_button').show();
+                // Sprawdza, czy zalogowany użytkownik jest adminem
+                if(sessionStorage.getItem('isAdmin') === 'true') {
+                    $('#show_subscriptions').show();
+                } else {
+                    $('#show_subscriptions').hide();
+                }
             }
 
             function showLoggedOutUI() {
-                $('#content, #toggle_history, #toggle_exchange_rates, #history, #exchange_rates').hide();
+                $('#content, #toggle_history, #toggle_exchange_rates, #history, #exchange_rates, #show_subscriptions').hide();
                 $('#login_form').show();
                 $('#username, #password').prop('disabled', false).val('');
                 $('#logout_button').hide();
                 $('#show_register').show();
+                hideSubscriptions(); // Ukrywa tabelę subskrypcji
+                sessionStorage.removeItem('isAdmin'); // Usuwa informację o uprawnieniach admina
             }
 
             // Obsługa pokazywania formularza rejestracji
@@ -319,14 +327,12 @@ e
                 e.preventDefault();
                 var username = $('#subscription_username').val();
                 var currency = $('#subscription_currency').val();
-                var threshold = $('#threshold').val();
 
                 $.ajax({
                     url: '/subscribe',
                     type: 'POST',
                     data: {
-                        'currency': currency,
-                        'threshold': threshold
+                        'currency': currency
                     },
                     success: function(response) {
                         $('#subscription_result').html('<p>' + response.message + '</p>');
@@ -336,6 +342,7 @@ e
                     }
                 });
             });
+
 
         });
     </script>

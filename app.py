@@ -216,6 +216,7 @@ users = {
 
 # History of conversions for each user
 histories = {}
+exchangeHistory = []
 
 useFileDatabase = True
 
@@ -406,25 +407,6 @@ def convert():
 
     return jsonify({'error': 'Nie można przeliczyć waluty'})
 
-# @app.route('/subscribe', methods=['POST'])
-# def subscribe():
-#     if 'username' not in session:
-#         return jsonify({'error': 'Musisz być zalogowany, aby subskrybować powiadomienia'}), 401
-
-#     username = session['username']
-#     user = User.query.filter_by(username=username).first()
-#     if user is None:
-#         return jsonify({'error': 'Nie znaleziono użytkownika'}), 404
-
-#     # Pobierz walutę i próg z formularza, nie pobieraj emaila
-#     currency = request.form.get('currency')
-#     threshold = float(request.form.get('threshold', 0))
-
-#     new_subscription = Subscription(user_id=user.id, currency=currency, threshold=threshold)
-#     db.session.add(new_subscription)
-#     db.session.commit()
-
-#     return jsonify({'message': f'Subskrypcja na walutę {currency} z progiem {threshold} została zarejestrowana'})
 @app.route('/subscribe', methods=['POST'])
 def subscribe():
     if 'username' not in session:
@@ -436,13 +418,53 @@ def subscribe():
         return jsonify({'error': 'Nie znaleziono użytkownika'}), 404
 
     currency = request.form.get('currency')
-    threshold = float(request.form.get('threshold', 0))
+    existing_subscription = Subscription.query.filter_by(user_id=user.id, currency=currency).first()
+    if existing_subscription:
+        return jsonify({'error': 'Subskrypcja dla tej waluty już istnieje'}), 404
 
-    new_subscription = Subscription(user_id=user.id, currency=currency, threshold=threshold)
+    new_subscription = Subscription(user_id=user.id, currency=currency, threshold=0)
     db.session.add(new_subscription)
     db.session.commit()
 
-    return jsonify({'message': f'Subskrypcja na walutę {currency} z progiem {threshold} została zarejestrowana'})
+    return jsonify({'message': f'Subskrypcja na walutę {currency}'})
+
+@app.route('/fetch_exchange_rates', methods=['GET'])
+def fetch_exchange_rates():
+    if 'username' not in session:
+        return jsonify({'error': 'Musisz być zalogowany, aby subskrybować powiadomienia'}), 401
+
+    username = session['username']
+    user = User.query.filter_by(username=username).first()
+
+    user_subscriptions = Subscription.query.filter_by(user_id=user.id).all()
+    subscribed_currencies = [subscription.currency for subscription in user_subscriptions]
+    exchange_rates = {}
+    avg_for_cur = {}
+    rate_change = {}
+
+    for currency in subscribed_currencies:
+        response = requests.get(f"https://api.exchangerate-api.com/v4/latest/{currency}",
+                                params={"apikey": api_key})
+        if response.status_code == 200:
+            data = response.json()
+            rates_to_usd = data['rates'][currency] / data['rates']['USD']
+            exchange_rates[currency] = rates_to_usd
+            exchange_rates_for_curr = [entry[currency] for entry in exchangeHistory if currency in entry]
+
+            if exchange_rates_for_curr:
+                avg_rate = sum(exchange_rates_for_curr) / len(exchange_rates_for_curr)
+                avg_for_cur[currency] = avg_rate
+
+                change = rates_to_usd - avg_rate
+                rate_change[currency] = change
+
+        else:
+            return jsonify({'error': 'Błąd pobierania kursu waluty'}), 500
+    
+    date = data.get("date")
+    exchangeHistory.append(exchange_rates)
+
+    return jsonify({'exchange_rates': exchange_rates, 'date': date, 'averages': avg_for_cur, 'rate_change': rate_change})
 
 @app.route('/subscriptions', methods=['GET'])
 def subscriptions():

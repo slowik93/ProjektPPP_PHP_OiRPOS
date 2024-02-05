@@ -82,25 +82,18 @@
             <h2>Subskrypcja Powiadomień o Zmianach Kursu Walut</h2>
             <form id="subscription_form">
                 <div class="form-group">
-                    <label for="subscription_username">Nazwa użytkownika:</label>
-                    <input type="text" class="form-control" id="subscription_username" required>
-                </div>
-                <div class="form-group">
                     <label for="subscription_currency">Waluta:</label>
                     <select class="form-control" id="subscription_currency">
                         <option value="PLN">PLN</option>
-                        <option value="USD">USD</option>
                         <option value="EUR">EUR</option>
+                        <option value="GBP">GBP</option>
                     </select>
-                </div>
-                <div class="form-group">
-                    <label for="threshold">Próg zmiany kursu:</label>
-                    <input type="number" class="form-control" id="threshold" required step="any" title="Wprowadź liczbę (liczby dziesiętne są dozwolone)">                    
                 </div>
                 <button type="submit" class="btn btn-primary">Subskrybuj</button>
             </form>
 e            
             <div id="subscription_result"></div>
+            <div id="notification-container"></div>
         </div>
     </div>
 
@@ -317,27 +310,83 @@ e
 
             $('#subscription_form').submit(function(e) {
                 e.preventDefault();
-                var username = $('#subscription_username').val();
                 var currency = $('#subscription_currency').val();
-                var threshold = $('#threshold').val();
 
                 $.ajax({
                     url: '/subscribe',
                     type: 'POST',
                     data: {
-                        'currency': currency,
-                        'threshold': threshold
+                        'currency': currency
                     },
                     success: function(response) {
                         $('#subscription_result').html('<p>' + response.message + '</p>');
                     },
                     error: function(response) {
-                        $('#subscription_result').html('<p>Wystąpił błąd podczas subskrypcji.</p>');
+                        $('#subscription_result').html('<p>Wystąpił błąd podczas subskrypcji. ' + response.responseJSON.error + '</p>');
                     }
                 });
             });
 
         });
+
+        function fetchExchangeRates() {
+            $.ajax({
+                url: '/fetch_exchange_rates', // Update the URL as per your Flask route
+                type: 'GET',
+                success: function(response) {
+                    console.log('Exchange rates fetched successfully:', response);
+                    processExchangeRates(response);
+                },
+                error: function(error) {
+                    console.error('Error fetching exchange rates:', response);
+                }
+            });
+        }
+
+        function processExchangeRates(response) {
+            var exchangeRates = response.exchange_rates;
+            var averages = response.averages;
+            var rateChanges = response.rate_change;
+
+            for (var currency in exchangeRates) {
+                if (rateChanges.hasOwnProperty(currency)) {
+                    var currentRate = exchangeRates[currency];
+                    var average = averages[currency];
+                    var rateChange = rateChanges[currency];
+
+                    notifyUser(currency, currentRate, average, rateChange);
+                    // if (Math.abs(rateChange) >= 0.01) {
+                    //     notifyUser(currency, currentRate, average, rateChange);
+                    // } else {
+                    //     console.log('no change');
+                    // }
+                }
+            }
+        }
+
+        function notifyUser(currency, currentRate, average, rateChange) {
+            var notificationContainer = document.getElementById('notification-container');
+            var notification = document.createElement('div');
+            notification.classList.add('notification');
+
+            var notificationContent = `
+                <strong>Currency:</strong> ${currency}<br>
+                <strong>Current Rate:</strong> ${currentRate}<br>
+                <strong>Average Rate:</strong> ${average}<br>
+                <strong>Rate Change:</strong> ${rateChange}
+            `;
+
+            notification.innerHTML = notificationContent;
+
+            notificationContainer.appendChild(notification);
+
+            setTimeout(function() {
+                notificationContainer.removeChild(notification);
+            }, 6000); 
+        }
+
+        fetchExchangeRates();
+        setInterval(fetchExchangeRates, 6000); // Adjust the interval as needed
     </script>
 </body>
 </html>

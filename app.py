@@ -423,7 +423,7 @@ def subscribe():
     if existing_subscription:
         return jsonify({'error': 'Subskrypcja dla tej waluty już istnieje'}), 404
 
-    new_subscription = Subscription(user_id=user.id, currency=currency, threshold=0)
+    new_subscription = Subscription(user_id=user.id, currency=currency)
     db.session.add(new_subscription)
     db.session.commit()
 
@@ -438,6 +438,10 @@ def fetch_exchange_rates():
     user = User.query.filter_by(username=username).first()
 
     user_subscriptions = Subscription.query.filter_by(user_id=user.id).all()
+
+    if len(user_subscriptions) == 0:
+        return jsonify({'error': 'Nie ma sub'}), 401
+
     subscribed_currencies = [subscription.currency for subscription in user_subscriptions]
     exchange_rates = {}
     avg_for_cur = {}

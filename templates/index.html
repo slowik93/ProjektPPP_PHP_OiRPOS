@@ -93,7 +93,7 @@
 
                 <button type="submit" class="btn btn-primary">Subskrybuj</button>
             </form>
-e            
+            
             <div id="subscription_result"></div>
             <div id="notification-container"></div>
         </div>
@@ -104,6 +104,16 @@ e
             function hideSubscriptions() {
                 $('#subscriptions_list').hide(); // Ukrywa tabelę subskrypcji
             }
+            function updateUIBasedOnLogin() {
+                const isLoggedIn = sessionStorage.getItem('isLoggedIn'); // Przykład: 'true' lub 'false'
+                if (isLoggedIn === 'true') {
+                    $('#show_subscriptions').show();
+                } else {
+                    $('#show_subscriptions').hide();
+                }
+            }
+            updateUIBasedOnLogin();
+
             var loggedInUsername = 'admin'; // Ta wartość powinna być dynamicznie ustawiana na podstawie zalogowanego użytkownika
 
             if(loggedInUsername === 'admin') {
